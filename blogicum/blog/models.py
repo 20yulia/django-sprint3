@@ -1,26 +1,16 @@
 from __future__ import annotations
 
-from typing import ClassVar
-
 from django.contrib.auth import get_user_model
 from django.db import models
 
 User = get_user_model()
 
+TITLE_MAX_LENGTH = 256
+NAME_MAX_LENGTH = 256
 
-class Category(models.Model):
-    title: models.CharField = models.CharField('Заголовок', max_length=256)
-    description: models.TextField = models.TextField('Описание')
 
-    jls_extract_var: ClassVar[str] = 'Идентификатор'
-    slug: models.SlugField = models.SlugField(
-        jls_extract_var,
-        unique=True,
-        help_text=(
-            'Идентификатор страницы для URL; разрешены символы латиницы, '
-            'цифры, дефис и подчёркивание.'
-        ),
-    )
+class PublishedModel(models.Model):
+    """Абстрактная модель с общими полями публикации."""
 
     is_published: models.BooleanField = models.BooleanField(
         'Опубликовано',
@@ -30,6 +20,25 @@ class Category(models.Model):
     created_at: models.DateTimeField = models.DateTimeField(
         'Добавлено',
         auto_now_add=True,
+    )
+
+    class Meta:
+        abstract = True
+
+
+class Category(PublishedModel):
+    title: models.CharField = models.CharField(
+        'Заголовок',
+        max_length=TITLE_MAX_LENGTH,
+    )
+    description: models.TextField = models.TextField('Описание')
+    slug: models.SlugField = models.SlugField(
+        'Идентификатор',
+        unique=True,
+        help_text=(
+            'Идентификатор страницы для URL; разрешены символы латиницы, '
+            'цифры, дефис и подчёркивание.'
+        ),
     )
 
     class Meta:
@@ -40,16 +49,10 @@ class Category(models.Model):
         return self.title
 
 
-class Location(models.Model):
-    name: models.CharField = models.CharField('Название места', max_length=256)
-    is_published: models.BooleanField = models.BooleanField(
-        'Опубликовано',
-        default=True,
-        help_text='Снимите галочку, чтобы скрыть публикацию.',
-    )
-    created_at: models.DateTimeField = models.DateTimeField(
-        'Добавлено',
-        auto_now_add=True,
+class Location(PublishedModel):
+    name: models.CharField = models.CharField(
+        'Название места',
+        max_length=NAME_MAX_LENGTH,
     )
 
     class Meta:
@@ -60,8 +63,11 @@ class Location(models.Model):
         return self.name
 
 
-class Post(models.Model):
-    title: models.CharField = models.CharField('Заголовок', max_length=256)
+class Post(PublishedModel):
+    title: models.CharField = models.CharField(
+        'Заголовок',
+        max_length=TITLE_MAX_LENGTH,
+    )
     text: models.TextField = models.TextField('Текст')
     pub_date: models.DateTimeField = models.DateTimeField(
         'Дата и время публикации',
@@ -74,6 +80,7 @@ class Post(models.Model):
         User,
         on_delete=models.CASCADE,
         verbose_name='Автор публикации',
+        related_name='posts',
     )
     location: models.ForeignKey = models.ForeignKey(
         Location,
@@ -81,24 +88,16 @@ class Post(models.Model):
         null=True,
         blank=True,
         verbose_name='Местоположение',
+        related_name='posts',
     )
-    # Категория обязательна в формах/админке (blank=False),
-    # но при удалении категории используем SET_NULL => null=True
+    # Категория обязательна в формах/админке (blank=False по умолчанию),
+    # но при удалении категории используем SET_NULL => null=True.
     category: models.ForeignKey = models.ForeignKey(
         Category,
         on_delete=models.SET_NULL,
         null=True,
-        blank=False,
         verbose_name='Категория',
-    )
-    is_published: models.BooleanField = models.BooleanField(
-        'Опубликовано',
-        default=True,
-        help_text='Снимите галочку, чтобы скрыть публикацию.',
-    )
-    created_at: models.DateTimeField = models.DateTimeField(
-        'Добавлено',
-        auto_now_add=True,
+        related_name='posts',
     )
 
     class Meta:
