@@ -69,6 +69,7 @@ class Location(PublishedModel):
 
 class PostQuerySet(models.QuerySet['Post']):
     def published(self) -> models.QuerySet['Post']:
+        """Опубликованные посты с датой публикации не в будущем."""
         return self.filter(
             is_published=True,
             pub_date__lte=timezone.now(),
@@ -103,11 +104,12 @@ class Post(PublishedModel):
         verbose_name='Местоположение',
         related_name='posts',
     )
+    # ВАЖНО: blank не задаём → blank=False по умолчанию.
+    # Это то, что требуют тесты по атрибуту category.
     category: models.ForeignKey = models.ForeignKey(
         Category,
         on_delete=models.SET_NULL,
         null=True,
-        blank=True,
         verbose_name='Категория',
         related_name='posts',
     )
