@@ -1,16 +1,19 @@
 from __future__ import annotations
 
+from typing import ClassVar
+
 from django.contrib.auth import get_user_model
 from django.db import models
+from django.utils import timezone
 
 User = get_user_model()
 
-TITLE_MAX_LENGTH = 256
-NAME_MAX_LENGTH = 256
+TITLE_MAX_LENGTH: int = 256
+SLUG_MAX_LENGTH: int = 64
 
 
 class PublishedModel(models.Model):
-    """Абстрактная модель с общими полями публикации."""
+    """Абстрактная модель с флагом публикации и датой создания."""
 
     is_published: models.BooleanField = models.BooleanField(
         'Опубликовано',
@@ -34,6 +37,7 @@ class Category(PublishedModel):
     description: models.TextField = models.TextField('Описание')
     slug: models.SlugField = models.SlugField(
         'Идентификатор',
+        max_length=SLUG_MAX_LENGTH,
         unique=True,
         help_text=(
             'Идентификатор страницы для URL; разрешены символы латиницы, '
@@ -52,7 +56,7 @@ class Category(PublishedModel):
 class Location(PublishedModel):
     name: models.CharField = models.CharField(
         'Название места',
-        max_length=NAME_MAX_LENGTH,
+        max_length=TITLE_MAX_LENGTH,
     )
 
     class Meta:
@@ -61,6 +65,14 @@ class Location(PublishedModel):
 
     def __str__(self) -> str:
         return self.name
+
+
+class PostQuerySet(models.QuerySet['Post']):
+    def published(self) -> models.QuerySet['Post']:
+        return self.filter(
+            is_published=True,
+            pub_date__lte=timezone.now(),
+        )
 
 
 class Post(PublishedModel):
@@ -75,6 +87,7 @@ class Post(PublishedModel):
             'Если установить дату и время в будущем — '
             'можно делать отложенные публикации.'
         ),
+        default=timezone.now,
     )
     author: models.ForeignKey = models.ForeignKey(
         User,
@@ -90,15 +103,16 @@ class Post(PublishedModel):
         verbose_name='Местоположение',
         related_name='posts',
     )
-    # Категория обязательна в формах/админке (blank=False по умолчанию),
-    # но при удалении категории используем SET_NULL => null=True.
     category: models.ForeignKey = models.ForeignKey(
         Category,
         on_delete=models.SET_NULL,
         null=True,
+        blank=True,
         verbose_name='Категория',
         related_name='posts',
     )
+
+    objects: ClassVar[models.Manager['Post']] = PostQuerySet.as_manager()
 
     class Meta:
         verbose_name = 'публикация'
