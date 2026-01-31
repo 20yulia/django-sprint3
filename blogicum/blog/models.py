@@ -4,6 +4,7 @@ from typing import ClassVar
 
 from django.contrib.auth import get_user_model
 from django.db import models
+from django.db.models import Q
 from django.utils import timezone
 
 User = get_user_model()
@@ -69,10 +70,20 @@ class Location(PublishedModel):
 
 class PostQuerySet(models.QuerySet['Post']):
     def published(self) -> models.QuerySet['Post']:
-        """Опубликованные посты с датой публикации не в будущем."""
-        return self.filter(
-            is_published=True,
-            pub_date__lte=timezone.now(),
+        """Опубликованные посты, которые можно показывать пользователю."""
+        return (
+            self.select_related('author', 'category', 'location')
+            .filter(
+                is_published=True,
+                pub_date__lte=timezone.now(),
+            )
+            .filter(
+                # Категория либо опубликована, либо отсутствует.
+                Q(category__is_published=True) | Q(category__isnull=True),
+                # ЛОКАЦИЮ НЕ ФИЛЬТРУЕМ:
+                # посты с локацией, снятой с публикации,
+                # должны продолжать отображаться.
+            )
         )
 
 
@@ -104,8 +115,7 @@ class Post(PublishedModel):
         verbose_name='Местоположение',
         related_name='posts',
     )
-    # ВАЖНО: blank не задаём → blank=False по умолчанию.
-    # Это то, что требуют тесты по атрибуту category.
+    # blank не задаём → blank=False по умолчанию: это нужно тестам.
     category: models.ForeignKey = models.ForeignKey(
         Category,
         on_delete=models.SET_NULL,
